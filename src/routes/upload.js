@@ -5,7 +5,7 @@ const router = express.Router();
 const {uploadFile, getFile, getAllFiles, deleteFile} =
     require('../controllers/upload');
 
-const {protect} = require('../middlewares/auth');
+const {protect, optionalAuth} = require('../middlewares/auth');
 const {uploadSingle} = require('../middlewares/upload');
 
 /**
@@ -67,7 +67,7 @@ const {uploadSingle} = require('../middlewares/upload');
  *         updatedAt: 2023-01-01T00:00:00.000Z
  */
 
-router.use(protect);  // Protect all routes
+// No longer protecting all routes by default
 
 // Upload routes
 /**
@@ -116,7 +116,7 @@ router.use(protect);  // Protect all routes
  *       401:
  *         description: 未授權
  */
-router.post('/', uploadSingle('file'), uploadFile);
+router.post('/', protect, uploadSingle('file'), uploadFile);
 
 /**
  * @swagger
@@ -147,15 +147,16 @@ router.post('/', uploadSingle('file'), uploadFile);
  *       401:
  *         description: 未授權
  */
-router.get('/', getAllFiles);
+router.get('/', protect, getAllFiles);
 
 /**
  * @swagger
  * /upload/{id}:
  *   get:
  *     summary: 獲取單個檔案
- *     tags: [檔案上傳]
- *     security:
+ *     description:
+ * 公開檔案無需登入即可訪問，私有檔案需要登入並且只有檔案擁有者可以訪問 tags:
+ * [檔案上傳] security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
@@ -170,9 +171,9 @@ router.get('/', getAllFiles);
  *       404:
  *         description: 檔案未找到
  *       401:
- *         description: 未授權
+ *         description: 未授權或私有檔案需要身份驗證
  */
-router.get('/:id', getFile);
+router.get('/:id', optionalAuth, getFile);
 
 /**
  * @swagger
@@ -208,6 +209,6 @@ router.get('/:id', getFile);
  *       401:
  *         description: 未授權
  */
-router.delete('/:id', deleteFile);
+router.delete('/:id', protect, deleteFile);
 
 module.exports = router;

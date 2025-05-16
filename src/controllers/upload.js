@@ -37,7 +37,7 @@ exports.getAllFiles = asyncHandler(async (req, res, next) => {
 
 // @desc    Get a single file
 // @route   GET /api/upload/:id
-// @access  Private
+// @access  Public (for public files) / Private (for user's own files)
 exports.getFile = asyncHandler(async (req, res, next) => {
   const file = await File.findById(req.params.id);
 
@@ -45,19 +45,22 @@ exports.getFile = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse(`找不到ID為 ${req.params.id} 的檔案`, 404));
   }
 
-  // Make sure user owns file or file is public
-  if (file.user.toString() !== req.user.id && !file.isPublic) {
+  // If file is not public and:
+  // - user is not logged in, or
+  // - user is logged in but doesn't own the file
+  // Then deny access
+  if (!file.isPublic &&
+      (!req.user || (req.user && file.user.toString() !== req.user.id))) {
     return next(new ErrorResponse('無權訪問此檔案', 401));
   }
-
-  const filePath = path.join(__dirname, '..', '..', file.filePath);
-
   // Check if file exists
-  if (!fs.existsSync(filePath)) {
+  if (!fs.existsSync(file.filePath)) {
     return next(new ErrorResponse('找不到檔案', 404));
   }
 
-  res.sendFile(filePath);
+  // Using absolute path for res.sendFile
+  const absolutePath = path.resolve(file.filePath);
+  res.sendFile(absolutePath);
 });
 
 // @desc    Delete a file
