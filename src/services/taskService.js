@@ -12,13 +12,13 @@ exports.getTasks = async (queryParams, userId) => {
   let query;
 
   // Copy req.query
-  const reqQuery = {...queryParams};
+  const reqQuery = { ...queryParams };
 
   // Fields to exclude
   const removeFields = ['select', 'sort', 'page', 'limit'];
 
   // Loop over removeFields and delete them from reqQuery
-  removeFields.forEach(param => delete reqQuery[param]);
+  removeFields.forEach((param) => delete reqQuery[param]);
 
   // Add userId filter if provided
   if (userId) {
@@ -29,7 +29,7 @@ exports.getTasks = async (queryParams, userId) => {
   let queryStr = JSON.stringify(reqQuery);
 
   // Create operators ($gt, $gte, etc)
-  queryStr = queryStr.replace(/\b(gt|gte|lt|lte|in)\b/g, match => `$${match}`);
+  queryStr = queryStr.replace(/\b(gt|gte|lt|lte|in)\b/g, (match) => `$${match}`);
 
   // Finding resource
   query = Task.find(JSON.parse(queryStr)).populate('user', 'name email');
@@ -64,14 +64,14 @@ exports.getTasks = async (queryParams, userId) => {
   const pagination = {};
 
   if (endIndex < total) {
-    pagination.next = {page: page + 1, limit};
+    pagination.next = { page: page + 1, limit };
   }
 
   if (startIndex > 0) {
-    pagination.prev = {page: page - 1, limit};
+    pagination.prev = { page: page - 1, limit };
   }
 
-  return {tasks, count: tasks.length, pagination, total};
+  return { tasks, count: tasks.length, pagination, total };
 };
 
 /**
@@ -129,8 +129,7 @@ exports.updateTask = async (id, updateData, userId, role) => {
     throw new ErrorResponse('Not authorized to update this task', 401);
   }
 
-  task = await Task.findByIdAndUpdate(
-      id, updateData, {new: true, runValidators: true});
+  task = await Task.findByIdAndUpdate(id, updateData, { new: true, runValidators: true });
 
   return task;
 };
@@ -154,6 +153,6 @@ exports.deleteTask = async (id, userId, role) => {
     throw new ErrorResponse('Not authorized to delete this task', 401);
   }
 
-  await Task.deleteOne({_id: id});
+  await Task.deleteOne({ _id: id });
   return true;
 };

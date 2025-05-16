@@ -1,0 +1,13 @@
+{
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.rulers": [100],
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "javascript.format.semicolons": "always",
+  "prettier.printWidth": 100,
+  "prettier.singleQuote": true,
+  "prettier.tabWidth": 2,
+  "prettier.proseWrap": "preserve"
+}

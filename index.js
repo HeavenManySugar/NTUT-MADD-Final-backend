@@ -18,21 +18,23 @@ connectDB();
 
 // Body parser
 app.use(express.json());
-app.use(express.urlencoded({extended: false}));
+app.use(express.urlencoded({ extended: false }));
 
 // Apply security middlewares
 // 自定義 Helmet 配置，允許 Swagger UI 正常運作
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ['\'self\''],
-      scriptSrc: ['\'self\'', '\'unsafe-inline\'', '\'unsafe-eval\''],
-      styleSrc: ['\'self\'', '\'unsafe-inline\''],
-      imgSrc: ['\'self\'', 'data:']
-    }
-  }
-}));
-app.use(cors());  // Enable CORS
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", 'data:'],
+      },
+    },
+  })
+);
+app.use(cors()); // Enable CORS
 
 // Set static folder
 app.use(express.static(path.join(__dirname, 'public')));
@@ -41,9 +43,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 setupLogger(app);
 
 // Setup Swagger
-app.use(
-    '/api-docs', swaggerUi.serve,
-    swaggerUi.setup(swaggerDocs, {explorer: true}));
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs, { explorer: true }));
 
 // Mount routes
 app.use('/api', apiRoutes);
@@ -54,13 +54,13 @@ app.get('/', (req, res) => {
     success: true,
     message: 'Welcome to the NTUT-MADD API',
     version: '1.0.0',
-    documentation: '/api-docs'
+    documentation: '/api-docs',
   });
 });
 
 // 404 handler
 app.use((req, res, next) => {
-  res.status(404).json({success: false, error: 'Route not found'});
+  res.status(404).json({ success: false, error: 'Route not found' });
 });
 
 // Error handler middleware

@@ -20,7 +20,7 @@ exports.findUserById = async (id) => {
  * @returns {Promise<User>} - User object
  */
 exports.findUserByEmail = async (email) => {
-  const user = await User.findOne({email});
+  const user = await User.findOne({ email });
   return user;
 };
 
@@ -36,8 +36,7 @@ exports.updateUser = async (id, updateData) => {
     delete updateData.role;
   }
 
-  const user = await User.findByIdAndUpdate(
-      id, updateData, {new: true, runValidators: true});
+  const user = await User.findByIdAndUpdate(id, updateData, { new: true, runValidators: true });
 
   if (!user) {
     throw new ErrorResponse(`User not found with id of ${id}`, 404);
@@ -58,7 +57,7 @@ exports.deleteUser = async (id) => {
     throw new ErrorResponse(`User not found with id of ${id}`, 404);
   }
 
-  await User.deleteOne({_id: id});
+  await User.deleteOne({ _id: id });
 
   return true;
 };

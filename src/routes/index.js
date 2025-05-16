@@ -15,7 +15,7 @@ router.use('/upload', uploadRoutes);
 
 // API health check route
 router.get('/health', (req, res) => {
-  res.status(200).json({success: true, message: 'API is running'});
+  res.status(200).json({ success: true, message: 'API is running' });
 });
 
 module.exports = router;

@@ -1,11 +1,10 @@
 const express = require('express');
-const {getProfile, updateProfile, deleteAccount} =
-    require('../controllers/profile');
+const { getProfile, updateProfile, deleteAccount } = require('../controllers/profile');
 
 const router = express.Router();
 
 // Import middleware
-const {protect} = require('../middlewares/auth');
+const { protect } = require('../middlewares/auth');
 
 /**
  * @swagger

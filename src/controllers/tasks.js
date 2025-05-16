@@ -13,7 +13,7 @@ exports.getTasks = asyncHandler(async (req, res, next) => {
     success: true,
     count: result.count,
     pagination: result.pagination,
-    data: result.tasks
+    data: result.tasks,
   });
 });
 
@@ -23,7 +23,7 @@ exports.getTasks = asyncHandler(async (req, res, next) => {
 exports.getTask = asyncHandler(async (req, res, next) => {
   const task = await taskService.getTaskById(req.params.id, req.user.id);
 
-  res.status(200).json({success: true, data: task});
+  res.status(200).json({ success: true, data: task });
 });
 
 // @desc    Create new task
@@ -32,17 +32,16 @@ exports.getTask = asyncHandler(async (req, res, next) => {
 exports.createTask = asyncHandler(async (req, res, next) => {
   const task = await taskService.createTask(req.body, req.user.id);
 
-  res.status(201).json({success: true, data: task});
+  res.status(201).json({ success: true, data: task });
 });
 
 // @desc    Update task
 // @route   PUT /api/tasks/:id
 // @access  Private
 exports.updateTask = asyncHandler(async (req, res, next) => {
-  const task = await taskService.updateTask(
-      req.params.id, req.body, req.user.id, req.user.role);
+  const task = await taskService.updateTask(req.params.id, req.body, req.user.id, req.user.role);
 
-  res.status(200).json({success: true, data: task});
+  res.status(200).json({ success: true, data: task });
 });
 
 // @desc    Delete task
@@ -51,5 +50,5 @@ exports.updateTask = asyncHandler(async (req, res, next) => {
 exports.deleteTask = asyncHandler(async (req, res, next) => {
   await taskService.deleteTask(req.params.id, req.user.id, req.user.role);
 
-  res.status(200).json({success: true, data: {}});
+  res.status(200).json({ success: true, data: {} });
 });

@@ -20,19 +20,19 @@ exports.uploadFile = asyncHandler(async (req, res, next) => {
     fileSize: req.file.size,
     filePath: req.file.path,
     user: req.user.id,
-    isPublic: req.body.isPublic === 'true'
+    isPublic: req.body.isPublic === 'true',
   });
 
-  res.status(201).json({success: true, data: file});
+  res.status(201).json({ success: true, data: file });
 });
 
 // @desc    Get all files for a user
 // @route   GET /api/upload
 // @access  Private
 exports.getAllFiles = asyncHandler(async (req, res, next) => {
-  const files = await File.find({user: req.user.id});
+  const files = await File.find({ user: req.user.id });
 
-  res.status(200).json({success: true, count: files.length, data: files});
+  res.status(200).json({ success: true, count: files.length, data: files });
 });
 
 // @desc    Get a single file
@@ -49,8 +49,7 @@ exports.getFile = asyncHandler(async (req, res, next) => {
   // - user is not logged in, or
   // - user is logged in but doesn't own the file
   // Then deny access
-  if (!file.isPublic &&
-      (!req.user || (req.user && file.user.toString() !== req.user.id))) {
+  if (!file.isPublic && (!req.user || (req.user && file.user.toString() !== req.user.id))) {
     return next(new ErrorResponse('無權訪問此檔案', 401));
   }
   // Check if file exists
@@ -81,7 +80,7 @@ exports.deleteFile = asyncHandler(async (req, res, next) => {
   const filePath = path.join(__dirname, '..', '..', file.filePath);
 
   // Delete file from database
-  await File.deleteOne({_id: req.params.id});
+  await File.deleteOne({ _id: req.params.id });
 
   // Delete file from filesystem
   try {
@@ -93,5 +92,5 @@ exports.deleteFile = asyncHandler(async (req, res, next) => {
     // Continue with response even if physical file deletion fails
   }
 
-  res.status(200).json({success: true, data: {}});
+  res.status(200).json({ success: true, data: {} });
 });

@@ -61,19 +61,20 @@ const mongoose = require('mongoose');
  */
 
 const FileSchema = new mongoose.Schema(
-    {
-      name: {
-        type: String,
-        required: [true, 'Please provide file name'],
-        trim: true,
-      },
-      originalName: {type: String, required: true},
-      fileType: {type: String, required: true},
-      fileSize: {type: Number, required: true},
-      filePath: {type: String, required: true},
-      user: {type: mongoose.Schema.ObjectId, ref: 'User', required: true},
-      isPublic: {type: Boolean, default: false}
+  {
+    name: {
+      type: String,
+      required: [true, 'Please provide file name'],
+      trim: true,
     },
-    {timestamps: true});
+    originalName: { type: String, required: true },
+    fileType: { type: String, required: true },
+    fileSize: { type: Number, required: true },
+    filePath: { type: String, required: true },
+    user: { type: mongoose.Schema.ObjectId, ref: 'User', required: true },
+    isPublic: { type: Boolean, default: false },
+  },
+  { timestamps: true }
+);
 
 module.exports = mongoose.model('File', FileSchema);

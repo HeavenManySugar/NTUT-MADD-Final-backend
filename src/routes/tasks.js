@@ -1,11 +1,10 @@
 const express = require('express');
-const {getTasks, getTask, createTask, updateTask, deleteTask} =
-    require('../controllers/tasks');
+const { getTasks, getTask, createTask, updateTask, deleteTask } = require('../controllers/tasks');
 
 const router = express.Router();
 
 // Import middleware
-const {protect} = require('../middlewares/auth');
+const { protect } = require('../middlewares/auth');
 
 /**
  * @swagger

@@ -49,36 +49,34 @@ const config = require('../config');
  */
 
 const UserSchema = new mongoose.Schema(
-    {
-      name: {
-        type: String,
-        required: [true, 'Please add a name'],
-        trim: true,
-        maxlength: [50, 'Name cannot be more than 50 characters']
-      },
-      email: {
-        type: String,
-        required: [true, 'Please add an email'],
-        unique: true,
-        match: [
-          /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/,
-          'Please add a valid email'
-        ]
-      },
-      password: {
-        type: String,
-        required: [true, 'Please add a password'],
-        minlength: 6,
-        select: false  // Don't return password in queries
-      },
-      role: {type: String, enum: ['user', 'admin'], default: 'user'},
-      resetPasswordToken: String,
-      resetPasswordExpire: Date
+  {
+    name: {
+      type: String,
+      required: [true, 'Please add a name'],
+      trim: true,
+      maxlength: [50, 'Name cannot be more than 50 characters'],
     },
-    {timestamps: true, toJSON: {virtuals: true}, toObject: {virtuals: true}});
+    email: {
+      type: String,
+      required: [true, 'Please add an email'],
+      unique: true,
+      match: [/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/, 'Please add a valid email'],
+    },
+    password: {
+      type: String,
+      required: [true, 'Please add a password'],
+      minlength: 6,
+      select: false, // Don't return password in queries
+    },
+    role: { type: String, enum: ['user', 'admin'], default: 'user' },
+    resetPasswordToken: String,
+    resetPasswordExpire: Date,
+  },
+  { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
+);
 
 // Encrypt password using bcrypt
-UserSchema.pre('save', async function(next) {
+UserSchema.pre('save', async function (next) {
   if (!this.isModified('password')) {
     next();
   }
@@ -88,13 +86,12 @@ UserSchema.pre('save', async function(next) {
 });
 
 // Sign JWT and return
-UserSchema.methods.getSignedJwtToken = function() {
-  return jwt.sign(
-      {id: this._id}, config.jwtSecret, {expiresIn: config.jwtExpire});
+UserSchema.methods.getSignedJwtToken = function () {
+  return jwt.sign({ id: this._id }, config.jwtSecret, { expiresIn: config.jwtExpire });
 };
 
 // Match user entered password to hashed password in database
-UserSchema.methods.matchPassword = async function(enteredPassword) {
+UserSchema.methods.matchPassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
 

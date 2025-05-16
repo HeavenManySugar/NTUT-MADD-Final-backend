@@ -2,11 +2,9 @@ const express = require('express');
 const router = express.Router();
 
 // Import controller methods
-const {uploadFile, getFile, getAllFiles, deleteFile} =
-    require('../controllers/upload');
-
-const {protect, optionalAuth} = require('../middlewares/auth');
-const {uploadSingle} = require('../middlewares/upload');
+const { uploadFile, getFile, getAllFiles, deleteFile } = require('../controllers/upload');
+const { protect, optionalAuth } = require('../middlewares/auth');
+const { uploadSingle } = require('../middlewares/upload');
 
 /**
  * @swagger
@@ -154,9 +152,9 @@ router.get('/', protect, getAllFiles);
  * /upload/{id}:
  *   get:
  *     summary: 獲取單個檔案
- *     description:
- * 公開檔案無需登入即可訪問，私有檔案需要登入並且只有檔案擁有者可以訪問 tags:
- * [檔案上傳] security:
+ *     description: 公開檔案無需登入即可訪問，私有檔案需要登入並且只有檔案擁有者可以訪問
+ *     tags: [檔案上傳]
+ *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
