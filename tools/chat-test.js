@@ -31,6 +31,7 @@ function showHelp() {
   console.log('message [content] - 在當前對話中發送訊息');
   console.log('read - 標記當前對話中的所有訊息為已讀');
   console.log('typing [true/false] - 發送輸入狀態');
+  console.log('online - 獲取在線用戶列表');
   console.log('exit - 退出當前對話');
   console.log('logout - 登出用戶');
   console.log('help - 顯示此幫助訊息');
@@ -85,19 +86,21 @@ function connectSocket() {
   socket.on('error', (error) => {
     console.error('聊天連接錯誤:', error);
   });
-
   // 監聽新訊息
   socket.on('message:new', (message) => {
     if (activeConversation && message.conversation === activeConversation._id) {
       const isMine = message.sender._id === currentUser._id;
-      console.log(`${isMine ? '我' : message.sender.name}: ${message.content}`);
+      const senderInfo = isMine ? '我' : `${message.sender.name} (ID: ${message.sender._id})`;
+      console.log(`${senderInfo}: ${message.content}`);
 
       // 如果訊息不是我發的，則標記為已讀
       if (!isMine) {
         socket.emit('message:read', { conversationId: activeConversation._id });
       }
     } else {
-      console.log(`\n[新訊息] ${message.sender.name}: ${message.content}\n`);
+      console.log(
+        `\n[新訊息] ${message.sender.name} (ID: ${message.sender._id}): ${message.content}\n`
+      );
     }
   });
 
@@ -109,6 +112,12 @@ function connectSocket() {
   // 監聽用戶狀態
   socket.on('user:status', (data) => {
     console.log(`\n[狀態] 用戶 ${data.userId} 現在狀態為 ${data.status}\n`);
+  });
+
+  // 監聽在線用戶列表
+  socket.on('user:onlineList', (onlineUsers) => {
+    console.log(`\n[在線用戶] 目前在線用戶數量: ${onlineUsers.length}`);
+    console.log(`在線用戶列表: ${onlineUsers.join(', ')}\n`);
   });
 
   // 監聽輸入狀態
@@ -140,9 +149,24 @@ async function listConversations() {
       return;
     }
 
+    // 獲取在線用戶列表
+    let onlineUsers = [];
+    if (socket) {
+      socket.emit('user:getOnline');
+      // 等待在線用戶列表
+      onlineUsers = await new Promise((resolve) => {
+        const timeout = setTimeout(() => resolve([]), 1000); // 1秒超時
+        socket.once('user:onlineList', (list) => {
+          clearTimeout(timeout);
+          resolve(list);
+        });
+      });
+    }
+
     console.log('\n--- 對話列表 ---');
     conversations.forEach((conv, index) => {
-      const otherUser = conv.otherUser || { name: '未知用戶' };
+      const otherUser = conv.otherUser || { name: '未知用戶', _id: '未知ID' };
+      const isUserOnline = onlineUsers.includes(otherUser._id);
       const lastMessage = conv.lastMessage
         ? `最新訊息: ${conv.lastMessage.content.substring(0, 20)}${
             conv.lastMessage.content.length > 20 ? '...' : ''
@@ -150,11 +174,11 @@ async function listConversations() {
         : '無訊息';
 
       console.log(
-        `${index + 1}. ${otherUser.name} - ${lastMessage} ${
+        `${index + 1}. ${otherUser.name} ${isUserOnline ? '(在線)' : '(離線)'} - ${lastMessage} ${
           conv.unreadCount > 0 ? `(${conv.unreadCount} 未讀)` : ''
         }`
       );
-      console.log(`   ID: ${conv._id}`);
+      console.log(`   ID: ${conv._id}, 對方用戶ID: ${otherUser._id}`);
     });
     console.log('----------------\n');
   } catch (error) {
@@ -221,14 +245,16 @@ async function getMessages(conversationId) {
       console.log('這個對話還沒有訊息');
       return;
     }
-
     console.log('\n----- 訊息記錄 -----');
     messages.forEach((msg) => {
       const isMine = msg.isMine;
+      const senderName = isMine ? '我' : msg.sender.name || '未知用戶';
+      const senderId = msg.sender._id || '未知ID';
       const time = new Date(msg.createdAt).toLocaleTimeString();
+      const date = new Date(msg.createdAt).toLocaleDateString();
       const readStatus = isMine && msg.isRead ? ' (已讀)' : '';
 
-      console.log(`[${time}] ${isMine ? '我' : msg.sender.name}: ${msg.content}${readStatus}`);
+      console.log(`[${date} ${time}] ${senderName} (ID: ${senderId}): ${msg.content}${readStatus}`);
     });
     console.log('---------------------\n');
   } catch (error) {
@@ -387,7 +413,6 @@ async function main() {
           await markAsRead();
         }
         break;
-
       case 'typing':
         if (!accessToken) {
           console.log('請先登錄');
@@ -397,6 +422,17 @@ async function main() {
           console.log('用法: typing [true/false]');
         } else {
           sendTypingStatus(args[1]);
+        }
+        break;
+
+      case 'online':
+        if (!accessToken) {
+          console.log('請先登錄');
+        } else if (!socket) {
+          console.log('未連接到聊天服務器');
+        } else {
+          console.log('正在獲取在線用戶列表...');
+          socket.emit('user:getOnline');
         }
         break;
 

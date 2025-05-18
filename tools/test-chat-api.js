@@ -88,6 +88,93 @@ async function testUserLogin() {
 }
 
 /**
+ * 測試在線狀態功能
+ */
+async function testOnlineStatus() {
+  console.log('開始測試: 在線狀態功能');
+
+  if (testData.users.length < 2 || testData.tokens.length < 2) {
+    console.error('❌ 沒有足夠的用戶進行測試');
+    return;
+  }
+
+  try {
+    // 創建 Socket.IO 客戶端，用於測試在線狀態功能
+    const io = require('socket.io-client');
+
+    console.log('嘗試連接 Socket.IO 並測試在線用戶功能...');
+
+    // 為第一個用戶創建 socket 連接
+    const socket1 = io('http://localhost:5000', {
+      auth: {
+        token: testData.tokens[0],
+      },
+    });
+
+    socket1.on('connect', () => {
+      console.log(`✅ 第一個用戶成功連接到 Socket.IO`);
+    });
+
+    socket1.on('connect_error', (error) => {
+      console.error(`❌ 第一個用戶連接錯誤:`, error.message);
+    });
+
+    // 等待連接建立
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    // 測試獲取在線用戶列表
+    socket1.emit('user:getOnline');
+
+    socket1.once('user:onlineList', (onlineUsers) => {
+      console.log(`✅ 收到在線用戶列表:`, onlineUsers);
+      console.log(`在線用戶數量: ${onlineUsers.length}`);
+
+      // 檢查當前用戶是否在在線列表中
+      const userInList = onlineUsers.includes(testData.users[0]._id);
+      console.log(`當前用戶在列表中: ${userInList ? '是' : '否'}`);
+    });
+
+    // 測試用戶狀態更新
+    socket1.on('user:status', (data) => {
+      console.log(`收到用戶狀態更新: 用戶 ${data.userId} 的狀態為 ${data.status}`);
+    });
+
+    // 等待事件處理
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    // 連接第二個用戶，測試狀態變化通知
+    console.log('嘗試連接第二個用戶...');
+    const socket2 = io('http://localhost:5000', {
+      auth: {
+        token: testData.tokens[1],
+      },
+    });
+
+    socket2.on('connect', () => {
+      console.log(`✅ 第二個用戶成功連接到 Socket.IO`);
+    });
+
+    // 等待連接和事件處理
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    // 斷開第二個用戶的連接，測試離線狀態
+    socket2.disconnect();
+    console.log('第二個用戶已斷開連接');
+
+    // 等待離線狀態事件
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    // 最後，斷開第一個用戶連接
+    socket1.disconnect();
+    console.log('第一個用戶已斷開連接');
+  } catch (error) {
+    console.error('❌ 測試在線狀態功能錯誤:', error.message);
+  }
+
+  console.log('-----------------------');
+}
+
+/**
  * 測試建立對話
  */
 async function testCreateConversation() {
@@ -248,17 +335,22 @@ async function testGetMessages() {
     if (response.data && response.data.success) {
       const messages = response.data.data || [];
       console.log(`✅ 獲取訊息成功，共 ${messages.length} 條訊息`);
-
       if (messages.length > 0) {
         console.log('\n訊息列表:');
         messages.forEach((message, index) => {
           const senderName = safeGet(message, 'sender.name', '未知用戶');
+          const senderId = safeGet(message, 'sender._id', '未知ID');
           const content = safeGet(message, 'content', '(無內容)');
           const isMine = safeGet(message, 'isMine', false);
           const isRead = safeGet(message, 'isRead', false);
+          const createdAt = new Date(safeGet(message, 'createdAt', Date.now())).toLocaleString();
 
-          console.log(`${index + 1}. ${senderName}: ${content}`);
-          console.log(`   ${isMine ? '我的訊息' : '對方訊息'} - ${isRead ? '已讀' : '未讀'}`);
+          console.log(`${index + 1}. ${senderName} (ID: ${senderId}): ${content}`);
+          console.log(
+            `   ${isMine ? '我的訊息' : '對方訊息'} - ${
+              isRead ? '已讀' : '未讀'
+            } - 發送時間: ${createdAt}`
+          );
         });
       }
     } else {
@@ -349,6 +441,83 @@ async function testGetConversations() {
 }
 
 /**
+ * 測試訊息發送者資訊
+ */
+async function testMessageSenderInfo() {
+  console.log('開始測試: 訊息發送者資訊');
+
+  if (!testData.conversation || !testData.conversation._id) {
+    console.error('❌ 沒有對話進行測試');
+    return;
+  }
+
+  try {
+    const response = await axios.get(
+      `${API_URL}/chat/conversations/${testData.conversation._id}/messages`,
+      {
+        headers: {
+          Authorization: `Bearer ${testData.tokens[0]}`,
+        },
+      }
+    );
+
+    if (response.data && response.data.success) {
+      const messages = response.data.data || [];
+
+      if (messages.length > 0) {
+        console.log(`✅ 獲取對話訊息成功，檢查發送者資訊`);
+
+        let allValid = true;
+        const validationResults = [];
+
+        // 檢查每條訊息的發送者資訊
+        messages.forEach((message, index) => {
+          const hasSenderId = !!safeGet(message, 'sender._id', false);
+          const hasSenderName = !!safeGet(message, 'sender.name', false);
+          const hasIsMineFlag = safeGet(message, 'isMine', null) !== null;
+
+          const isValid = hasSenderId && hasSenderName && hasIsMineFlag;
+          allValid = allValid && isValid;
+
+          validationResults.push({
+            messageId: message._id,
+            hasSenderId,
+            hasSenderName,
+            hasIsMineFlag,
+            isValid,
+          });
+        });
+
+        // 顯示驗證結果
+        console.log(`\n發送者資訊驗證結果:`);
+        validationResults.forEach((result, index) => {
+          console.log(`訊息 ${index + 1} (ID: ${result.messageId}):`);
+          console.log(`  發送者ID: ${result.hasSenderId ? '✅ 正確' : '❌ 缺失'}`);
+          console.log(`  發送者名稱: ${result.hasSenderName ? '✅ 正確' : '❌ 缺失'}`);
+          console.log(`  isMine標記: ${result.hasIsMineFlag ? '✅ 正確' : '❌ 缺失'}`);
+          console.log(`  結果: ${result.isValid ? '✅ 有效' : '❌ 無效'}`);
+        });
+
+        // 總結果
+        if (allValid) {
+          console.log(`\n✅ 所有訊息都包含完整的發送者資訊`);
+        } else {
+          console.error(`\n❌ 部分訊息缺少發送者資訊，請檢查詳細結果`);
+        }
+      } else {
+        console.log('沒有訊息可供測試');
+      }
+    } else {
+      console.error('❌ 獲取訊息失敗:', response.data);
+    }
+  } catch (error) {
+    console.error('❌ 測試訊息發送者資訊錯誤:', safeGet(error, 'response.data', error.message));
+  }
+
+  console.log('-----------------------');
+}
+
+/**
  * 運行所有測試
  */
 async function runTests() {
@@ -363,6 +532,8 @@ async function runTests() {
     await testGetMessages();
     await testMarkAsRead();
     await testGetConversations();
+    await testOnlineStatus();
+    await testMessageSenderInfo();
 
     console.log('\n=========================================');
     console.log('✅ 所有測試完成');
