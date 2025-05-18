@@ -38,9 +38,7 @@ const initializeSocket = (io) => {
   });
 
   io.on('connection', (socket) => {
-    console.log(`User connected: ${socket.user.id}`);
-
-    // Add user to online users
+    console.log(`User connected: ${socket.user.id}`); // Add user to online users
     onlineUsers.set(socket.user.id, socket.id);
 
     // Join user to their conversations
@@ -50,6 +48,17 @@ const initializeSocket = (io) => {
     io.emit('user:status', {
       userId: socket.user.id,
       status: 'online',
+    });
+
+    // 廣播更新的在線用戶列表給所有用戶
+    const onlineUsersList = Array.from(onlineUsers.keys());
+    io.emit('user:onlineList', onlineUsersList);
+
+    // Handle request for online users list
+    socket.on('user:getOnline', () => {
+      // Convert Map keys to array and send to client
+      const onlineUserIds = Array.from(onlineUsers.keys());
+      socket.emit('user:onlineList', onlineUserIds);
     }); // Listen for new messages
     socket.on('message:send', async (data) => {
       try {
@@ -89,9 +98,7 @@ const initializeSocket = (io) => {
           // Update conversation with lastMessage
           await Conversation.findByIdAndUpdate(conversationId, {
             lastMessage: message._id,
-          });
-
-          // Populate message data
+          }); // Populate message data
           const populatedMessage = await Message.findById(message._id).populate({
             path: 'sender',
             select: 'name email',
@@ -102,8 +109,19 @@ const initializeSocket = (io) => {
             return;
           }
 
+          // 確保發送者資訊完整
+          const formattedMessage = {
+            ...populatedMessage.toObject(),
+            isMine: false, // 對其他人來說不是自己發的
+          };
+
+          // 對發送者的處理
+          if (socket.user && socket.user.id === populatedMessage.sender._id.toString()) {
+            formattedMessage.isMine = true; // 對發送者來說是自己發的
+          }
+
           // Emit message to all participants in the conversation
-          io.to(`conversation:${conversationId}`).emit('message:new', populatedMessage);
+          io.to(`conversation:${conversationId}`).emit('message:new', formattedMessage);
 
           // Update conversations list for all participants with the new last message
           for (const participantId of conversation.participants) {
@@ -125,7 +143,22 @@ const initializeSocket = (io) => {
                   });
 
                 if (updatedConversation) {
-                  io.to(userSocketId).emit('conversation:update', updatedConversation);
+                  // 格式化對話以包含當前參與者的資訊
+                  const formattedConversation = {
+                    ...updatedConversation.toObject(),
+                    otherUser: null,
+                  };
+
+                  // 找出對方用戶
+                  const otherUser = updatedConversation.participants.find(
+                    (p) => p._id.toString() !== participantId.toString()
+                  );
+
+                  if (otherUser) {
+                    formattedConversation.otherUser = otherUser;
+                  }
+
+                  io.to(userSocketId).emit('conversation:update', formattedConversation);
                 }
               }
             } catch (err) {
@@ -212,9 +245,7 @@ const initializeSocket = (io) => {
           isTyping,
         });
       }
-    });
-
-    // Handle disconnection
+    }); // Handle disconnection
     socket.on('disconnect', () => {
       console.log(`User disconnected: ${socket.user.id}`);
 
@@ -226,6 +257,10 @@ const initializeSocket = (io) => {
         userId: socket.user.id,
         status: 'offline',
       });
+
+      // 廣播更新的在線用戶列表給所有用戶
+      const onlineUsersList = Array.from(onlineUsers.keys());
+      io.emit('user:onlineList', onlineUsersList);
     });
   });
 };
