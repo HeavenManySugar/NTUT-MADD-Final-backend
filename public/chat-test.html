@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>聊天系統測試</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        .chat-container {
+            display: flex;
+            flex: 1;
+            border: 1px solid #ccc;
+            margin-top: 20px;
+        }
+
+        .sidebar {
+            width: 30%;
+            border-right: 1px solid #ccc;
+            overflow-y: auto;
+        }
+
+        .chat-area {
+            width: 70%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .message-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+            background-color: #f9f9f9;
+        }
+
+        .input-area {
+            padding: 10px;
+            border-top: 1px solid #ccc;
+        }
+
+        .message {
+            margin-bottom: 10px;
+            padding: 8px 12px;
+            border-radius: 5px;
+            max-width: 70%;
+            word-break: break-word;
+        }
+
+        .message.own {
+            background-color: #dcf8c6;
+            align-self: flex-end;
+            margin-left: auto;
+        }
+
+        .message.other {
+            background-color: #ffffff;
+            align-self: flex-start;
+        }
+
+        .message-container {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .conversation-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+        }
+
+        .conversation-item:hover,
+        .conversation-item.active {
+            background-color: #f0f0f0;
+        }
+
+        .login-panel,
+        .chat-panel {
+            margin-bottom: 20px;
+        }
+
+        input[type="text"],
+        input[type="email"],
+        input[type="password"],
+        button {
+            padding: 8px;
+            margin: 5px 0;
+        }
+
+        .typing-indicator {
+            font-style: italic;
+            color: #666;
+            margin-bottom: 5px;
+            height: 18px;
+        }
+
+        .read-status {
+            font-size: 0.7em;
+            color: #666;
+            text-align: right;
+        }
+
+        .online-status {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+        }
+
+        .online {
+            background-color: #4CAF50;
+        }
+
+        .offline {
+            background-color: #9E9E9E;
+        }
+
+        /* 新增樣式 */
+        .last-message {
+            color: #666;
+            font-size: 0.9em;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 90%;
+        }
+
+        .conversation-footer {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 5px;
+            font-size: 0.8em;
+        }
+
+        .time {
+            color: #888;
+        }
+
+        .unread-badge {
+            background-color: #4CAF50;
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+
+        .loading {
+            text-align: center;
+            color: #888;
+            padding: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>聊天系統測試</h1>
+        <div class="usage-tips"
+            style="margin-bottom: 15px; padding: 10px; background-color: #f0f0f0; border-left: 4px solid #4CAF50;">
+            <h3 style="margin-top: 0;">使用說明：</h3>
+            <ol>
+                <li>登入後可以看到您的現有對話</li>
+                <li>要開始新對話，請輸入對方的電子郵件並點擊"建立對話"</li>
+                <li>綠色圓點表示用戶在線，灰色表示離線</li>
+                <li>有人正在輸入時會顯示"對方正在輸入..."</li>
+                <li>消息發出後會顯示"已讀"狀態</li>
+                <li>未讀消息會在對話列表中顯示計數</li>
+            </ol>
+        </div>
+
+        <!-- 登入面板 -->
+        <div id="loginPanel" class="login-panel">
+            <h2>登入</h2>
+            <div>
+                <input type="email" id="email" placeholder="電子郵件" value="test1@example.com">
+                <input type="password" id="password" placeholder="密碼" value="password123">
+                <button id="loginBtn">登入</button>
+            </div>
+        </div>
+
+        <!-- 聊天面板 -->
+        <div id="chatPanel" class="chat-panel" style="display:none;">
+            <div>
+                已登入: <span id="loggedInUser"></span>
+                <button id="logoutBtn">登出</button>
+            </div>
+
+            <div>
+                <h3>建立對話</h3>
+                <input type="text" id="otherUserEmail" placeholder="輸入用戶電子郵件">
+                <button id="createConversationBtn">建立對話</button>
+            </div>
+
+            <div class="chat-container">
+                <!-- 對話列表 -->
+                <div class="sidebar">
+                    <h3>對話列表</h3>
+                    <button id="refreshConversationsBtn">重新整理</button>
+                    <div id="conversationList"></div>
+                </div>
+
+                <!-- 訊息區域 -->
+                <div class="chat-area">
+                    <div class="message-area" id="messageArea">
+                        <div id="messagesContainer"></div>
+                        <div id="typingIndicator" class="typing-indicator"></div>
+                    </div>
+
+                    <div class="input-area">
+                        <input type="text" id="messageInput" placeholder="輸入訊息..." disabled>
+                        <button id="sendBtn" disabled>發送</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 變數定義
+        let currentUser = null;
+        let currentToken = null;
+        let socket = null;
+        let conversations = [];
+        let currentConversation = null;
+        let typingTimeout = null;
+        let onlineUsers = new Set();
+
+        // DOM元素
+        const loginPanel = document.getElementById('loginPanel');
+        const chatPanel = document.getElementById('chatPanel');
+        const loggedInUser = document.getElementById('loggedInUser');
+        const loginBtn = document.getElementById('loginBtn');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const email = document.getElementById('email');
+        const password = document.getElementById('password');
+        const otherUserEmail = document.getElementById('otherUserEmail');
+        const createConversationBtn = document.getElementById('createConversationBtn');
+        const conversationList = document.getElementById('conversationList');
+        const messageArea = document.getElementById('messageArea');
+        const messagesContainer = document.getElementById('messagesContainer');
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const typingIndicator = document.getElementById('typingIndicator');
+        const refreshConversationsBtn = document.getElementById('refreshConversationsBtn');
+
+        // API URL
+        const API_URL = 'http://localhost:5000/api';
+
+        // 初始化
+        function init() {
+            // 監聽事件
+            loginBtn.addEventListener('click', login);
+            logoutBtn.addEventListener('click', logout);
+            createConversationBtn.addEventListener('click', createConversation);
+            sendBtn.addEventListener('click', sendMessage);
+            refreshConversationsBtn.addEventListener('click', loadConversations);
+
+            messageInput.addEventListener('keypress', function (e) {
+                if (e.key === 'Enter') {
+                    sendMessage();
+                }
+            });
+
+            messageInput.addEventListener('input', function () {
+                if (currentConversation && socket) {
+                    // 清除之前的計時器
+                    clearTimeout(typingTimeout);
+
+                    // 發送正在輸入狀態
+                    socket.emit('user:typing', {
+                        conversationId: currentConversation._id,
+                        isTyping: true
+                    });
+
+                    // 設定計時器，3秒後發送停止輸入狀態
+                    typingTimeout = setTimeout(() => {
+                        socket.emit('user:typing', {
+                            conversationId: currentConversation._id,
+                            isTyping: false
+                        });
+                    }, 3000);
+                }
+            });
+
+            // 檢查localStorage中是否有已保存的token
+            const savedToken = localStorage.getItem('token');
+            const savedUser = localStorage.getItem('user');
+
+            if (savedToken && savedUser) {
+                currentToken = savedToken;
+                currentUser = JSON.parse(savedUser);
+                showChatPanel();
+                connectSocket();
+                loadConversations();
+            }
+        }
+
+        // 登入
+        async function login() {
+            try {
+                // 禁用登入按鈕並顯示狀態
+                loginBtn.disabled = true;
+                loginBtn.textContent = '登入中...';
+
+                const response = await axios.post(`${API_URL}/auth/login`, {
+                    email: email.value,
+                    password: password.value
+                });
+
+                if (response.data.success) {
+                    currentToken = response.data.token;
+                    currentUser = response.data.data;
+
+                    // 保存到localStorage
+                    localStorage.setItem('token', currentToken);
+                    localStorage.setItem('user', JSON.stringify(currentUser));
+
+                    showChatPanel();
+                    connectSocket();
+                    loadConversations();
+                } else {
+                    alert('登入失敗: ' + (response.data.error || '未知錯誤'));
+                }
+            } catch (error) {
+                console.error('登入錯誤:', error);
+                alert('登入錯誤: ' + (error.response?.data?.error || error.message));
+            } finally {
+                // 恢復登入按鈕狀態
+                loginBtn.disabled = false;
+                loginBtn.textContent = '登入';
+            }
+        }
+
+        // 登出
+        function logout() {
+            // 斷開socket連接
+            if (socket) {
+                socket.disconnect();
+                socket = null;
+            }
+
+            // 清除localStorage
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+
+            // 重置變數
+            currentUser = null;
+            currentToken = null;
+            currentConversation = null;
+            conversations = [];
+
+            // 顯示登入面板
+            loginPanel.style.display = 'block';
+            chatPanel.style.display = 'none';
+        }
+
+        // 顯示聊天面板
+        function showChatPanel() {
+            loginPanel.style.display = 'none';
+            chatPanel.style.display = 'block';
+            loggedInUser.textContent = `${currentUser.name} (${currentUser.email})`;
+        }
+
+        // 連接Socket.IO
+        function connectSocket() {
+            // 如果已有連接，先斷開
+            if (socket) {
+                socket.disconnect();
+            }
+
+            // 創建Socket.IO連接
+            socket = io('http://localhost:5000', {
+                auth: {
+                    token: currentToken
+                },
+                reconnection: true,
+                reconnectionAttempts: 5,
+                reconnectionDelay: 1000
+            });
+
+            // 連接事件
+            socket.on('connect', () => {
+                console.log('Socket連接成功');
+                loadConversations();
+            });
+
+            // 重連事件
+            socket.on('reconnect', (attemptNumber) => {
+                console.log(`Socket重新連接成功 (嘗試次數: ${attemptNumber})`);
+                loadConversations();
+            });
+
+            // 重連嘗試事件
+            socket.on('reconnect_attempt', (attemptNumber) => {
+                console.log(`嘗試重新連接 (次數: ${attemptNumber})`);
+            });
+
+            // 重連錯誤
+            socket.on('reconnect_error', (error) => {
+                console.error('重新連接錯誤:', error);
+            });
+
+            // 重連失敗
+            socket.on('reconnect_failed', () => {
+                console.error('重新連接失敗');
+                alert('Socket連接失敗，請重新整理頁面或重新登入');
+            });
+
+            // 錯誤事件
+            socket.on('connect_error', (error) => {
+                console.error('Socket連接錯誤:', error.message);
+                alert('Socket連接錯誤: ' + error.message);
+            });
+
+            // 新訊息事件
+            socket.on('message:new', (message) => {
+                console.log('收到新訊息:', message);
+
+                // 如果是當前對話的訊息，顯示它
+                if (currentConversation && message.conversation === currentConversation._id) {
+                    appendMessage(message);
+
+                    // 如果不是自己發送的訊息，則標記為已讀
+                    if (message.sender && message.sender._id !== currentUser._id) {
+                        markConversationAsRead(currentConversation._id);
+                    }
+                }
+
+                // 重新載入對話列表
+                loadConversations();
+            });
+
+            // 已讀事件
+            socket.on('message:read', (data) => {
+                console.log('訊息已讀:', data);
+
+                if (currentConversation && data.conversationId === currentConversation._id) {
+                    // 更新訊息的已讀狀態
+                    document.querySelectorAll('.message.own').forEach(el => {
+                        // 檢查消息 ID 是否包含在已讀消息列表中
+                        if (data.messageIds && data.messageIds.includes(el.dataset.messageId)) {
+                            const readStatus = el.querySelector('.read-status');
+                            if (readStatus) {
+                                readStatus.textContent = '已讀';
+                            }
+                        }
+                    });
+
+                    // 更新對話列表以反映未讀計數的變化
+                    loadConversations();
+                }
+            });
+
+            // 對話更新事件
+            socket.on('conversation:update', (conversation) => {
+                console.log('對話更新:', conversation);
+                loadConversations();
+            });
+
+            // 輸入中事件
+            socket.on('user:typing', (data) => {
+                console.log('用戶輸入中:', data);
+
+                if (currentConversation && data.conversationId === currentConversation._id) {
+                    // 顯示正在輸入指示器
+                    if (data.isTyping) {
+                        typingIndicator.textContent = '對方正在輸入...';
+                    } else {
+                        typingIndicator.textContent = '';
+                    }
+                }
+            });
+
+            // 用戶狀態事件
+            socket.on('user:status', (data) => {
+                console.log('用戶狀態:', data);
+
+                if (data.status === 'online') {
+                    onlineUsers.add(data.userId);
+                } else {
+                    onlineUsers.delete(data.userId);
+                }
+
+                // 更新對話列表中的在線狀態
+                updateOnlineStatus();
+            });
+
+            // 錯誤事件
+            socket.on('error', (error) => {
+                console.error('Socket錯誤:', error);
+                alert('發生錯誤: ' + error.message);
+            });
+        }
+
+        // 載入對話列表
+        async function loadConversations() {
+            try {
+                // 設置加載狀態
+                conversationList.innerHTML = '<div class="loading">正在載入對話...</div>';
+
+                const response = await axios.get(`${API_URL}/chat/conversations`, {
+                    headers: {
+                        Authorization: `Bearer ${currentToken}`
+                    }
+                });
+
+                if (response.data.success) {
+                    conversations = response.data.data || [];
+                    renderConversationList();
+
+                    // 如果有當前對話，重新選擇它
+                    if (currentConversation) {
+                        const conversation = conversations.find(c => c._id === currentConversation._id);
+                        if (conversation) {
+                            selectConversation(conversation);
+                        } else {
+                            // 如果當前對話不再存在，清空消息區域
+                            currentConversation = null;
+                            messagesContainer.innerHTML = '';
+                            messageInput.disabled = true;
+                            sendBtn.disabled = true;
+                        }
+                    }
+                } else {
+                    console.error('載入對話失敗:', response.data);
+                    conversationList.innerHTML = '<div class="conversation-item" style="color: red;">載入對話失敗</div>';
+                }
+            } catch (error) {
+                console.error('載入對話錯誤:', error);
+                conversationList.innerHTML = '<div class="conversation-item" style="color: red;">載入對話錯誤</div>';
+
+                // 如果是授權錯誤，可能是token過期，嘗試重新登入
+                if (error.response && error.response.status === 401) {
+                    alert('您的登入已過期，請重新登入');
+                    logout();
+                } else {
+                    alert('載入對話錯誤: ' + (error.response?.data?.error || error.message));
+                }
+            }
+        }
+
+        // 渲染對話列表
+        function renderConversationList() {
+            conversationList.innerHTML = '';
+
+            if (!Array.isArray(conversations) || conversations.length === 0) {
+                conversationList.innerHTML = '<div class="conversation-item">沒有對話</div>';
+                return;
+            }
+
+            conversations.forEach(conversation => {
+                if (!conversation || !conversation._id) {
+                    console.error('無效的對話物件:', conversation);
+                    return;
+                }
+
+                const div = document.createElement('div');
+                div.className = 'conversation-item';
+                if (currentConversation && conversation._id === currentConversation._id) {
+                    div.classList.add('active');
+                }
+
+                const otherUser = conversation.otherUser || {};
+                const lastMessage = conversation.lastMessage && conversation.lastMessage.content ?
+                    conversation.lastMessage.content : '無訊息';
+                const unreadCount = conversation.unreadCount || 0;
+
+                const isOnline = otherUser && otherUser._id && onlineUsers.has(otherUser._id);
+                const statusClass = isOnline ? 'online' : 'offline';
+
+                // 格式化最後訊息時間（如果有）
+                let timeDisplay = '';
+                if (conversation.lastMessage && conversation.lastMessage.createdAt) {
+                    const msgDate = new Date(conversation.lastMessage.createdAt);
+                    const now = new Date();
+
+                    if (msgDate.toDateString() === now.toDateString()) {
+                        // 今天的訊息只顯示時間
+                        timeDisplay = msgDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    } else {
+                        // 其他顯示日期
+                        timeDisplay = msgDate.toLocaleDateString();
+                    }
+                }
+
+                div.innerHTML = `
+                    <span class="online-status ${statusClass}"></span>
+                    <strong>${otherUser.name || '未知用戶'}</strong>
+                    <div class="last-message">${lastMessage}</div>
+                    <div class="conversation-footer">
+                        ${timeDisplay ? `<span class="time">${timeDisplay}</span>` : ''}
+                        ${unreadCount > 0 ? `<span class="unread-badge">${unreadCount}</span>` : ''}
+                    </div>
+                `;
+
+                div.addEventListener('click', () => selectConversation(conversation));
+                conversationList.appendChild(div);
+            });
+        }// 選擇對話
+        function selectConversation(conversation) {
+            if (!conversation) return;
+
+            currentConversation = conversation;
+
+            // 更新UI
+            document.querySelectorAll('.conversation-item').forEach(el => {
+                el.classList.remove('active');
+            });
+
+            const items = document.querySelectorAll('.conversation-item');
+            for (let i = 0; i < items.length; i++) {
+                if (i === conversations.indexOf(conversation)) {
+                    items[i].classList.add('active');
+                    break;
+                }
+            }
+
+            // 清空輸入框和打字狀態
+            messageInput.value = '';
+            typingIndicator.textContent = '';
+
+            // 啟用訊息輸入
+            messageInput.disabled = false;
+            sendBtn.disabled = false;
+
+            // 載入訊息
+            loadMessages(conversation._id);
+
+            // 標記為已讀
+            if (conversation.unreadCount > 0) {
+                markConversationAsRead(conversation._id);
+            }
+        }        // 載入訊息
+        async function loadMessages(conversationId) {
+            try {
+                // 清空訊息容器
+                messagesContainer.innerHTML = '';
+
+                // 顯示載入中的提示
+                messagesContainer.innerHTML = '<div class="loading">正在載入訊息...</div>';
+
+                const response = await axios.get(`${API_URL}/chat/conversations/${conversationId}/messages`, {
+                    headers: {
+                        Authorization: `Bearer ${currentToken}`
+                    }
+                });
+
+                // 清空訊息容器(包括載入中的提示)
+                messagesContainer.innerHTML = '';
+
+                if (response.data.success) {
+                    const messages = response.data.data || [];
+
+                    if (messages.length === 0) {
+                        messagesContainer.innerHTML = '<div style="text-align: center; color: #888;">沒有訊息</div>';
+                    } else {
+                        messages.forEach(message => {
+                            appendMessage(message);
+                        });
+                    }
+
+                    // 滾動到底部
+                    messageArea.scrollTop = messageArea.scrollHeight;
+                } else {
+                    console.error('載入訊息失敗:', response.data);
+                    messagesContainer.innerHTML = '<div style="text-align: center; color: red;">載入訊息失敗</div>';
+                }
+            } catch (error) {
+                console.error('載入訊息錯誤:', error);
+                messagesContainer.innerHTML = '<div style="text-align: center; color: red;">載入訊息錯誤</div>';
+                alert('載入訊息錯誤: ' + (error.response?.data?.error || error.message));
+            }
+        }// 添加訊息到界面
+        function appendMessage(message) {
+            if (!message || !message._id) {
+                console.error('無效的訊息物件:', message);
+                return;
+            }
+
+            const div = document.createElement('div');
+            div.className = 'message-container';
+
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message';
+            messageDiv.dataset.messageId = message._id;
+
+            // 安全地判斷訊息是否由當前用戶發送
+            let isMine = false;
+            if (message.sender && message.sender._id) {
+                isMine = message.sender._id === currentUser._id;
+            } else if (message.isMine) {
+                isMine = true;
+            }
+
+            messageDiv.classList.add(isMine ? 'own' : 'other');
+
+            // 安全地獲取發送者名稱
+            let senderName = '未知用戶';
+            if (message.sender && message.sender.name) {
+                senderName = message.sender.name;
+            }
+
+            const content = message.content || '';
+
+            messageDiv.innerHTML = `
+                ${!isMine ? `<strong>${senderName}:</strong><br>` : ''}
+                ${content}
+                ${isMine ? `<div class="read-status">${message.isRead ? '已讀' : '未讀'}</div>` : ''}
+            `;
+
+            div.appendChild(messageDiv);
+            messagesContainer.appendChild(div);
+
+            // 滾動到底部
+            messageArea.scrollTop = messageArea.scrollHeight;
+        }
+
+        // 發送訊息
+        async function sendMessage() {
+            if (!currentConversation || !messageInput.value.trim()) {
+                return;
+            }
+
+            try {
+                const content = messageInput.value.trim();
+
+                // 先清空輸入框
+                messageInput.value = '';
+
+                // 清除打字狀態
+                if (typingTimeout) {
+                    clearTimeout(typingTimeout);
+                    typingTimeout = null;
+
+                    // 通知停止輸入
+                    if (socket && socket.connected) {
+                        socket.emit('user:typing', {
+                            conversationId: currentConversation._id,
+                            isTyping: false
+                        });
+                    }
+                }
+
+                // 先在UI中顯示一個臨時訊息（樂觀UI更新）
+                const tempMessage = {
+                    _id: 'temp-' + Date.now(),
+                    content,
+                    sender: currentUser,
+                    isMine: true,
+                    isRead: false,
+                    createdAt: new Date().toISOString()
+                };
+                appendMessage(tempMessage);
+
+                // 直接通過Socket發送
+                if (socket && socket.connected) {
+                    socket.emit('message:send', {
+                        conversationId: currentConversation._id,
+                        content
+                    });
+                } else {
+                    // 備用方案：使用HTTP API
+                    const response = await axios.post(
+                        `${API_URL}/chat/conversations/${currentConversation._id}/messages`,
+                        { content },
+                        {
+                            headers: {
+                                Authorization: `Bearer ${currentToken}`
+                            }
+                        }
+                    );
+
+                    if (response.data.success) {
+                        const message = response.data.data;
+
+                        // 移除臨時訊息
+                        const tempEl = document.querySelector(`.message[data-message-id="temp-${Date.now()}"]`);
+                        if (tempEl && tempEl.parentNode) {
+                            tempEl.parentNode.remove();
+                        }
+
+                        // 添加實際訊息
+                        appendMessage(message);
+                    } else {
+                        alert('發送訊息失敗: ' + (response.data.error || '未知錯誤'));
+                    }
+                }
+            } catch (error) {
+                console.error('發送訊息錯誤:', error);
+                alert('發送訊息錯誤: ' + (error.response?.data?.error || error.message));
+            }
+        }
+
+        // 創建新對話
+        async function createConversation() {
+            const email = otherUserEmail.value.trim();
+            if (!email) {
+                alert('請輸入用戶電子郵件');
+                return;
+            }
+
+            // 顯示創建中的狀態
+            createConversationBtn.textContent = '創建中...';
+            createConversationBtn.disabled = true;
+
+            try {
+                // 先查找用戶ID
+                const userResponse = await axios.get(`${API_URL}/auth/search?email=${email}`, {
+                    headers: {
+                        Authorization: `Bearer ${currentToken}`
+                    }
+                });
+
+                if (!userResponse.data.success || !userResponse.data.data) {
+                    alert(`找不到用戶: ${email}`);
+                    return;
+                }
+
+                const userId = userResponse.data.data._id;
+
+                // 檢查是否與自己創建對話
+                if (userId === currentUser._id) {
+                    alert('不能與自己創建對話');
+                    return;
+                }
+
+                // 創建對話
+                const response = await axios.post(
+                    `${API_URL}/chat/conversations`,
+                    { userId },
+                    {
+                        headers: {
+                            Authorization: `Bearer ${currentToken}`
+                        }
+                    }
+                );
+
+                if (response.data.success) {
+                    otherUserEmail.value = '';
+                    alert('對話創建成功');
+
+                    // 重新載入對話列表
+                    await loadConversations();
+
+                    // 選擇新創建的對話
+                    const newConversation = response.data.data;
+                    const conversationInList = conversations.find(c => c._id === newConversation._id);
+                    if (conversationInList) {
+                        selectConversation(conversationInList);
+                    }
+                } else {
+                    alert('創建對話失敗: ' + (response.data.error || '未知錯誤'));
+                }
+            } catch (error) {
+                console.error('創建對話錯誤:', error);
+
+                // 如果錯誤是因為對話已存在
+                if (error.response?.data?.error === '已存在與此用戶的對話') {
+                    alert('已存在與此用戶的對話，正在加載...');
+                    await loadConversations();
+
+                    // 嘗試找到並選擇現有對話
+                    const existingConversation = conversations.find(c =>
+                        c.otherUser && c.otherUser.email === email
+                    );
+
+                    if (existingConversation) {
+                        selectConversation(existingConversation);
+                    }
+
+                    return;
+                }
+
+                alert('創建對話錯誤: ' + (error.response?.data?.error || error.message));
+            } finally {
+                // 無論結果如何，恢復按鈕狀態
+                createConversationBtn.textContent = '建立對話';
+                createConversationBtn.disabled = false;
+            }
+        }
+
+        // 標記對話為已讀
+        async function markConversationAsRead(conversationId) {
+            try {
+                // 通過Socket.IO標記為已讀
+                if (socket) {
+                    socket.emit('message:read', { conversationId });
+                } else {
+                    // 備用方案：使用HTTP API
+                    await axios.put(
+                        `${API_URL}/chat/conversations/${conversationId}/read`,
+                        {},
+                        {
+                            headers: {
+                                Authorization: `Bearer ${currentToken}`
+                            }
+                        }
+                    );
+                }
+
+                // 重新載入對話列表
+                loadConversations();
+            } catch (error) {
+                console.error('標記已讀錯誤:', error);
+            }
+        }        // 更新在線狀態
+        function updateOnlineStatus() {
+            document.querySelectorAll('.conversation-item').forEach((el, index) => {
+                const conversation = conversations[index];
+                if (conversation && conversation.otherUser && conversation.otherUser._id) {
+                    const statusEl = el.querySelector('.online-status');
+                    if (statusEl) {
+                        const isOnline = onlineUsers.has(conversation.otherUser._id);
+                        statusEl.className = `online-status ${isOnline ? 'online' : 'offline'}`;
+                    }
+                }
+            });
+        }
+
+        // 初始化
+        init();
+    </script>
+</body>
+
+</html>

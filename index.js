@@ -3,15 +3,26 @@ const cors = require('cors');
 const helmet = require('helmet');
 const path = require('path');
 const swaggerUi = require('swagger-ui-express');
+const { createServer } = require('http');
+const { Server } = require('socket.io');
 const connectDB = require('./src/config/db');
 const errorHandler = require('./src/middlewares/error');
 const config = require('./src/config');
 const apiRoutes = require('./src/routes/index');
 const setupLogger = require('./src/middlewares/logger');
 const swaggerDocs = require('./src/config/swagger');
+const initializeSocket = require('./src/services/socketService');
 
 // Initialize express
 const app = express();
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+  cors: {
+    origin: '*', // Adjust this to match your frontend URL in production
+    methods: ['GET', 'POST'],
+    credentials: true,
+  },
+});
 
 // Connect to database
 connectDB();
@@ -21,15 +32,22 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 // Apply security middlewares
-// 自定義 Helmet 配置，允許 Swagger UI 正常運作
+// 自定義 Helmet 配置，允許 Swagger UI 和 外部CDN 正常運作
 app.use(
   helmet({
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+        scriptSrc: [
+          "'self'",
+          "'unsafe-inline'",
+          "'unsafe-eval'",
+          'cdn.socket.io',
+          'cdn.jsdelivr.net',
+        ],
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", 'data:'],
+        connectSrc: ["'self'", 'wss:', 'ws:'],
       },
     },
   })
@@ -66,10 +84,13 @@ app.use((req, res, next) => {
 // Error handler middleware
 app.use(errorHandler);
 
+// Initialize Socket.IO
+initializeSocket(io);
+
 // Start server
 const PORT = config.port;
 
-const server = app.listen(PORT, () => {
+const server = httpServer.listen(PORT, () => {
   console.log(`Server running in ${config.env} mode on port ${PORT}`);
 });
 

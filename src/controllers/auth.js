@@ -6,10 +6,10 @@ const User = require('../models/User');
 // @route   POST /api/auth/register
 // @access  Public
 exports.register = asyncHandler(async (req, res, next) => {
-  const {name, email, password, role} = req.body;
+  const { name, email, password, role } = req.body;
 
   // Create user
-  const user = await User.create({name, email, password, role});
+  const user = await User.create({ name, email, password, role });
 
   sendTokenResponse(user, 201, res);
 });
@@ -18,7 +18,7 @@ exports.register = asyncHandler(async (req, res, next) => {
 // @route   POST /api/auth/login
 // @access  Public
 exports.login = asyncHandler(async (req, res, next) => {
-  const {email, password} = req.body;
+  const { email, password } = req.body;
 
   // Validate email and password
   if (!email || !password) {
@@ -26,7 +26,7 @@ exports.login = asyncHandler(async (req, res, next) => {
   }
 
   // Check for user
-  const user = await User.findOne({email}).select('+password');
+  const user = await User.findOne({ email }).select('+password');
 
   if (!user) {
     return next(new ErrorResponse('Invalid credentials', 401));
@@ -48,26 +48,47 @@ exports.login = asyncHandler(async (req, res, next) => {
 exports.getMe = asyncHandler(async (req, res, next) => {
   const user = await User.findById(req.user.id);
 
-  res.status(200).json({success: true, data: user});
+  res.status(200).json({ success: true, data: user });
 });
 
-// @desc    Log user out / clear cookie
-// @route   GET /api/auth/logout
+// @desc    搜索用戶通過電子郵件
+// @route   GET /api/auth/search
 // @access  Private
-exports.logout = asyncHandler(async (req, res, next) => {
-  res.status(200).json(
-      {success: true, message: 'User logged out successfully'});
+exports.searchUserByEmail = asyncHandler(async (req, res, next) => {
+  const { email } = req.query;
+
+  if (!email) {
+    return next(new ErrorResponse('請提供電子郵件進行搜索', 400));
+  }
+
+  // 查找用戶但不返回密碼
+  const user = await User.findOne({ email }).select('-password');
+
+  if (!user) {
+    return next(new ErrorResponse('找不到用戶', 404));
+  }
+
+  res.status(200).json({ success: true, data: user });
 });
 
-// Get token from model, create cookie and send response
+// Get token from model, create and send response
 const sendTokenResponse = (user, statusCode, res) => {
   // Create token
   const token = user.getSignedJwtToken();
 
-  const options = {
-    expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-    httpOnly: true
+  // Create a user object without the password
+  const userData = {
+    _id: user._id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
   };
 
-  res.status(statusCode).json({success: true, token});
+  res.status(statusCode).json({
+    success: true,
+    token,
+    data: userData,
+  });
 };

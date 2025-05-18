@@ -1,5 +1,5 @@
 const express = require('express');
-const { register, login, getMe, logout } = require('../controllers/auth');
+const { register, login, getMe, logout, searchUserByEmail } = require('../controllers/auth');
 
 const router = express.Router();
 
@@ -138,15 +138,22 @@ router.get('/me', protect, getMe);
 
 /**
  * @swagger
- * /auth/logout:
+ * /auth/search:
  *   get:
- *     summary: 用戶登出
+ *     summary: 通過電子郵件搜索用戶
  *     tags: [認證]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - name: email
+ *         in: query
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 要搜索的用戶電子郵件
  *     responses:
  *       200:
- *         description: 登出成功
+ *         description: 成功
  *         content:
  *           application/json:
  *             schema:
@@ -155,10 +162,13 @@ router.get('/me', protect, getMe);
  *                 success:
  *                   type: boolean
  *                   example: true
- *                 message:
- *                   type: string
- *                   example: User logged out successfully
+ *                 data:
+ *                   $ref: '#/components/schemas/User'
+ *       404:
+ *         description: 找不到用戶
+ *       401:
+ *         description: 未授權
  */
-router.get('/logout', protect, logout);
+router.get('/search', protect, searchUserByEmail);
 
 module.exports = router;
