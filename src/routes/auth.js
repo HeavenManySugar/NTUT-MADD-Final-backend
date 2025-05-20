@@ -1,10 +1,11 @@
 const express = require('express');
-const { register, login, getMe, logout, searchUserByEmail } = require('../controllers/auth');
+const { register, login, getMe, searchUserByEmail } = require('../controllers/auth');
 
 const router = express.Router();
 
 // Import middleware
 const { protect } = require('../middlewares/auth');
+const { authLimiter, loginLimiter } = require('../middlewares/rateLimiter');
 
 /**
  * @swagger
@@ -65,7 +66,7 @@ const { protect } = require('../middlewares/auth');
  *       409:
  *         description: 用戶已存在
  */
-router.post('/register', register);
+router.post('/register', authLimiter, register);
 
 /**
  * @swagger

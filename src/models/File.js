@@ -66,15 +66,34 @@ const FileSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Please provide file name'],
       trim: true,
+      index: true, // 添加索引以加快文件名搜索
     },
     originalName: { type: String, required: true },
-    fileType: { type: String, required: true },
+    fileType: {
+      type: String,
+      required: true,
+      index: true, // 添加索引以加快按文件類型篩選
+    },
     fileSize: { type: Number, required: true },
     filePath: { type: String, required: true },
-    user: { type: mongoose.Schema.ObjectId, ref: 'User', required: true },
-    isPublic: { type: Boolean, default: false },
+    user: {
+      type: mongoose.Schema.ObjectId,
+      ref: 'User',
+      required: true,
+      index: true, // 添加索引以加快按用戶查詢文件
+    },
+    isPublic: {
+      type: Boolean,
+      default: false,
+      index: true, // 添加索引以加快公開文件查詢
+    },
   },
   { timestamps: true }
 );
+
+// 添加複合索引以加快常見查詢場景
+FileSchema.index({ user: 1, fileType: 1 });
+FileSchema.index({ user: 1, createdAt: -1 });
+FileSchema.index({ isPublic: 1, fileType: 1 });
 
 module.exports = mongoose.model('File', FileSchema);

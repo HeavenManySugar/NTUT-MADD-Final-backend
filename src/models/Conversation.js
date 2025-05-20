@@ -42,12 +42,21 @@ const ConversationSchema = new mongoose.Schema(
     lastMessage: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Message',
+      index: true, // 添加索引以加快最新消息查詢
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    // 添加未讀消息計數器作為虛擬字段
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+  }
 );
 
 // Create a unique compound index on participants to prevent duplicate conversations
 ConversationSchema.index({ participants: 1 }, { unique: true });
+
+// 添加按更新時間排序的索引，以便快速獲取最近的對話
+ConversationSchema.index({ updatedAt: -1 });
 
 module.exports = mongoose.model('Conversation', ConversationSchema);

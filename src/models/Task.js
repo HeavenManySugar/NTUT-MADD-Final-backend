@@ -64,6 +64,7 @@ const TaskSchema = new mongoose.Schema(
       required: [true, 'Please add a title'],
       trim: true,
       maxlength: [100, 'Title cannot be more than 100 characters'],
+      index: 'text', // 添加文本索引以支持標題搜索
     },
     description: {
       type: String,
@@ -75,17 +76,31 @@ const TaskSchema = new mongoose.Schema(
       required: true,
       enum: ['pending', 'in-progress', 'completed'],
       default: 'pending',
+      index: true, // 添加索引以加快按狀態篩選
     },
     priority: {
       type: String,
       required: true,
       enum: ['low', 'medium', 'high'],
       default: 'medium',
+      index: true, // 添加索引以加快按優先級篩選
     },
-    dueDate: { type: Date },
-    user: { type: mongoose.Schema.ObjectId, ref: 'User', required: true },
+    dueDate: {
+      type: Date,
+      index: true, // 添加索引以加快按截止日期排序和篩選
+    },
+    user: {
+      type: mongoose.Schema.ObjectId,
+      ref: 'User',
+      required: true,
+      index: true, // 添加索引以加快按用戶查詢任務
+    },
   },
   { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
 );
+
+// 添加複合索引以加快多條件查詢
+TaskSchema.index({ user: 1, status: 1, priority: 1 });
+TaskSchema.index({ user: 1, dueDate: 1 });
 
 module.exports = mongoose.model('Task', TaskSchema);

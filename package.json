@@ -5,7 +5,16 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "optimize-db": "node tools/optimize-database.js",
+    "monitor-db": "node tools/db-performance-monitor.js",
+    "analyze-performance": "node tools/optimize-database.js && node tools/db-performance-monitor.js",
+    "load-test": "node tools/load-test.js",
+    "load-test:login": "CONCURRENT_USERS=50 TEST_DURATION=30 node tools/load-test.js",
+    "enhanced-load-test": "node tools/enhanced-load-test.js",
+    "enhanced-load-test:login": "node tools/enhanced-load-test.js --endpoint=auth/login --users=100 --duration=60",
+    "health-check": "node tools/db-health-check.js",
+    "monitor-health": "node tools/db-health-check.js --watch"
   },
   "repository": {
     "type": "git",
@@ -17,14 +26,17 @@
   "dependencies": {
     "axios": "^1.9.0",
     "bcryptjs": "^3.0.2",
+    "compression": "^1.8.0",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
+    "express-rate-limit": "^7.5.0",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.14.3",
     "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.2",
+    "redis": "^3.1.2",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",
     "swagger-jsdoc": "^6.2.8",

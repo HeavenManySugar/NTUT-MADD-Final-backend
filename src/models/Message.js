@@ -44,6 +44,7 @@ const MessageSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: true,
+      index: true, // 添加索引以加快發送者搜索
     },
     content: {
       type: String,
@@ -54,6 +55,7 @@ const MessageSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Conversation',
       required: true,
+      index: true, // 添加索引以加快對話搜索
     },
     readBy: [
       {
@@ -64,5 +66,9 @@ const MessageSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+// 添加複合索引以加快常見查詢模式
+MessageSchema.index({ conversation: 1, createdAt: -1 });
+MessageSchema.index({ sender: 1, conversation: 1 });
 
 module.exports = mongoose.model('Message', MessageSchema);

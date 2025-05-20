@@ -1,5 +1,7 @@
 const Task = require('../models/Task');
 const ErrorResponse = require('../utils/errorResponse');
+const { withCache, deleteCache, clearCachePattern } = require('../utils/cacheUtils');
+const { findOne, find, paginate, update, remove } = require('../utils/dbUtils');
 
 /**
  * Get all tasks with filtering, sorting and pagination
@@ -9,69 +11,81 @@ const ErrorResponse = require('../utils/errorResponse');
  * @returns {Promise<Object>} - Tasks and pagination data
  */
 exports.getTasks = async (queryParams, userId) => {
-  let query;
+  // 為了緩存，創建一個能標識查詢獨特性的鍵
+  const cacheKey = `tasks:${userId || 'all'}:${JSON.stringify(queryParams)}`;
 
-  // Copy req.query
-  const reqQuery = { ...queryParams };
+  // 使用緩存包裝器，過期時間設為 5 分鐘
+  return withCache(
+    cacheKey,
+    async () => {
+      // 準備查詢條件
+      const conditions = {};
 
-  // Fields to exclude
-  const removeFields = ['select', 'sort', 'page', 'limit'];
+      // 添加用戶篩選
+      if (userId) {
+        conditions.user = userId;
+      }
 
-  // Loop over removeFields and delete them from reqQuery
-  removeFields.forEach((param) => delete reqQuery[param]);
+      // 處理高級篩選條件 ($gt, $gte 等)
+      Object.keys(queryParams).forEach((key) => {
+        // 跳過分頁、排序和選擇參數
+        if (['select', 'sort', 'page', 'limit'].includes(key)) return;
 
-  // Add userId filter if provided
-  if (userId) {
-    reqQuery.user = userId;
-  }
+        // 處理比較運算符
+        if (typeof queryParams[key] === 'string') {
+          const match = queryParams[key].match(/\b(gt|gte|lt|lte|in)\b:(.*)/);
+          if (match) {
+            const operator = `$${match[1]}`;
+            const value = match[2];
+            conditions[key] = { [operator]: value };
+          } else {
+            conditions[key] = queryParams[key];
+          }
+        } else {
+          conditions[key] = queryParams[key];
+        }
+      });
 
-  // Create query string
-  let queryStr = JSON.stringify(reqQuery);
+      // 準備選項
+      const options = {
+        page: parseInt(queryParams.page, 10) || 1,
+        limit: parseInt(queryParams.limit, 10) || 25,
+        select: queryParams.select || 'title status priority dueDate createdAt updatedAt user',
+        populate: {
+          path: 'user',
+          select: 'name email',
+        },
+        lean: true,
+      };
 
-  // Create operators ($gt, $gte, etc)
-  queryStr = queryStr.replace(/\b(gt|gte|lt|lte|in)\b/g, (match) => `$${match}`);
+      // 處理排序
+      if (queryParams.sort) {
+        options.sort = {};
+        const sortFields = queryParams.sort.split(',');
 
-  // Finding resource
-  query = Task.find(JSON.parse(queryStr)).populate('user', 'name email');
+        sortFields.forEach((field) => {
+          if (field.startsWith('-')) {
+            options.sort[field.substring(1)] = -1;
+          } else {
+            options.sort[field] = 1;
+          }
+        });
+      } else {
+        options.sort = { createdAt: -1 };
+      }
 
-  // Select Fields
-  if (queryParams.select) {
-    const fields = queryParams.select.split(',').join(' ');
-    query = query.select(fields);
-  }
+      // 使用 dbUtils 的 paginate 函數進行優化查詢
+      const result = await paginate(Task, conditions, options);
 
-  // Sort
-  if (queryParams.sort) {
-    const sortBy = queryParams.sort.split(',').join(' ');
-    query = query.sort(sortBy);
-  } else {
-    query = query.sort('-createdAt');
-  }
-
-  // Pagination
-  const page = parseInt(queryParams.page, 10) || 1;
-  const limit = parseInt(queryParams.limit, 10) || 25;
-  const startIndex = (page - 1) * limit;
-  const endIndex = page * limit;
-  const total = await Task.countDocuments(JSON.parse(queryStr));
-
-  query = query.skip(startIndex).limit(limit);
-
-  // Executing query
-  const tasks = await query;
-
-  // Pagination result
-  const pagination = {};
-
-  if (endIndex < total) {
-    pagination.next = { page: page + 1, limit };
-  }
-
-  if (startIndex > 0) {
-    pagination.prev = { page: page - 1, limit };
-  }
-
-  return { tasks, count: tasks.length, pagination, total };
+      return {
+        tasks: result.data,
+        count: result.data.length,
+        pagination: result.pagination,
+        total: result.pagination.total,
+      };
+    },
+    300
+  ); // 5分鐘緩存
 };
 
 /**
@@ -81,18 +95,30 @@ exports.getTasks = async (queryParams, userId) => {
  * @returns {Promise<Task>} - Task object
  */
 exports.getTaskById = async (id, userId = null) => {
-  const task = await Task.findById(id).populate('user', 'name email');
+  // 使用 Redis 緩存單個任務查詢，設置 10 分鐘過期時間
+  return withCache(
+    `task:${id}`,
+    async () => {
+      // 使用 dbUtils 的 findOne 函數代替直接 Mongoose 查詢
+      const task = await findOne(Task, id, {
+        populate: 'user',
+        select: 'title description status priority dueDate user createdAt updatedAt',
+        lean: true,
+      });
 
-  if (!task) {
-    throw new ErrorResponse(`Task not found with id of ${id}`, 404);
-  }
+      if (!task) {
+        throw new ErrorResponse(`Task not found with id of ${id}`, 404);
+      }
 
-  // Check if user is authorized to access this task
-  if (userId && task.user.toString() !== userId) {
-    throw new ErrorResponse('Not authorized to access this task', 401);
-  }
+      // Check if user is authorized to access this task
+      if (userId && task.user._id.toString() !== userId) {
+        throw new ErrorResponse('Not authorized to access this task', 401);
+      }
 
-  return task;
+      return task;
+    },
+    600
+  ); // 10分鐘緩存
 };
 
 /**
@@ -105,8 +131,12 @@ exports.createTask = async (taskData, userId) => {
   // Add user to taskData
   taskData.user = userId;
 
-  const task = await Task.create(taskData);
-  return task;
+  // 使用 dbUtils.create 優化創建操作
+  // create 函數會自動處理緩存清除
+  const newTask = await Task.create(taskData);
+
+  // 返回新建任務
+  return findOne(Task, newTask._id, { lean: true });
 };
 
 /**
@@ -118,7 +148,8 @@ exports.createTask = async (taskData, userId) => {
  * @returns {Promise<Task>} - Updated task object
  */
 exports.updateTask = async (id, updateData, userId, role) => {
-  let task = await Task.findById(id);
+  // 首先檢查任務是否存在，只獲取必要字段以提高性能
+  let task = await findOne(Task, id, { select: 'user', lean: true });
 
   if (!task) {
     throw new ErrorResponse(`Task not found with id of ${id}`, 404);
@@ -129,7 +160,11 @@ exports.updateTask = async (id, updateData, userId, role) => {
     throw new ErrorResponse('Not authorized to update this task', 401);
   }
 
-  task = await Task.findByIdAndUpdate(id, updateData, { new: true, runValidators: true });
+  // 使用 dbUtils 的 update 函數代替直接 Mongoose 查詢
+  task = await update(Task, id, updateData);
+
+  // 更新任務後，刪除相關緩存已由 dbUtils 處理
+  // dbUtils.update 已經會自動清除實體和列表緩存
 
   return task;
 };
@@ -142,7 +177,8 @@ exports.updateTask = async (id, updateData, userId, role) => {
  * @returns {Promise<boolean>} - True if delete successful
  */
 exports.deleteTask = async (id, userId, role) => {
-  const task = await Task.findById(id);
+  // 只獲取用戶ID以驗證權限，提高查詢性能
+  const task = await findOne(Task, id, { select: 'user', lean: true });
 
   if (!task) {
     throw new ErrorResponse(`Task not found with id of ${id}`, 404);
@@ -153,6 +189,11 @@ exports.deleteTask = async (id, userId, role) => {
     throw new ErrorResponse('Not authorized to delete this task', 401);
   }
 
-  await Task.deleteOne({ _id: id });
+  // 使用 dbUtils 的 remove 函數
+  await remove(Task, id);
+
+  // 刪除相關緩存已由 dbUtils 處理
+  // dbUtils.remove 已經會自動清除實體和列表緩存
+
   return true;
 };
