@@ -3,7 +3,7 @@
  */
 
 const axios = require('axios');
-const API_URL = 'http://localhost:5000/api';
+const API_URL = 'http://localhost:3000/api';
 
 // 測試用戶數據
 const testUsers = [
@@ -105,7 +105,7 @@ async function testOnlineStatus() {
     console.log('嘗試連接 Socket.IO 並測試在線用戶功能...');
 
     // 為第一個用戶創建 socket 連接
-    const socket1 = io('http://localhost:5000', {
+    const socket1 = io('http://localhost:3000', {
       auth: {
         token: testData.tokens[0],
       },
@@ -144,7 +144,7 @@ async function testOnlineStatus() {
 
     // 連接第二個用戶，測試狀態變化通知
     console.log('嘗試連接第二個用戶...');
-    const socket2 = io('http://localhost:5000', {
+    const socket2 = io('http://localhost:3000', {
       auth: {
         token: testData.tokens[1],
       },

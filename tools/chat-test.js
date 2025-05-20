@@ -9,7 +9,7 @@ const { io } = require('socket.io-client');
 const jwt = require('jsonwebtoken');
 
 // 配置
-const API_URL = 'http://localhost:5000/api';
+const API_URL = 'http://localhost:3000/api';
 let accessToken = '';
 let socket = null;
 let currentUser = null;
@@ -69,7 +69,7 @@ function connectSocket() {
     return;
   }
 
-  socket = io(`http://localhost:5000`, {
+  socket = io(`http://localhost:3000`, {
     auth: {
       token: accessToken,
     },
